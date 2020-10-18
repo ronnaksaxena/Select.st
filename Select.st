@@ -48,13 +48,13 @@ Object subclass: Select [
     if: booleanBlock then: doBlock [
         self checkAllowed: #if:then:.
         allowedMsgs remove: #switch: ifAbsent: [].
-        self iff: [ "MISSING" ]
+        self iff: booleanBlock
              thenn: doBlock
     ]
 
     case: collectionBlock then: doBlock [
         self checkAllowed: #case:then:.
-        self iff: [ "MISSING" ]
+        self iff: [(collectionBlock value) includes: switchValue]
            thenn: doBlock
     ]
 
@@ -74,24 +74,61 @@ Object subclass: Select [
 ]
 
 Select subclass: AllSelect [
-    end [ "MISSING" ]
+    end [
+    |foundTrue|
+    foundTrue := false.
+    "Does all true then blocks and then updates foundtrue upon finding one"
+    1 to: guardBlocks size do: [ :i | ((guardBlocks at: i) value) ifTrue: [((thenBlocks at: i) value).
+                                      foundTrue := true]].
+    foundTrue ifFalse: [elseBlock value]
+    ]
 ]
 
 Select subclass: AnySelect [
-    end [ "MISSING" ]
+    end [
+    |lastTrueIdx|
+    lastTrueIdx := 0.
+    "Loops through guardblocks and outputs all correct thenblocks"
+    1 to: guardBlocks size do: [:idx | ((guardBlocks at: idx) value) ifTrue: [
+                                          lastTrueIdx := idx]].
+    (lastTrueIdx>0) ifTrue: [((thenBlocks at: lastTrueIdx) value)]
+                    ifFalse: [elseBlock value]
+    ]
 ]
 
 Select subclass: FirstSelect [
-    end [ "MISSING" ]
+    end [
+    "Only evaluates first true block"
+    1 to: guardBlocks size do: [:idx | ((guardBlocks at: idx) value) ifTrue: [
+                                         ^((thenBlocks at: idx) value)]].
+    "checks if else is there or not"
+    (elseBlock isNil) ifTrue: [^nil]
+                      ifFalse: [^elseBlock value].
+  ]
+
 ]
 
 Select subclass: ExclusiveSelect [
-    end [ "MISSING" ]
+    end [
+    |numTrue trueIdx|
+    trueIdx := 0.
+    numTrue := 0.
+    "Loops through guardBlocks to find number of true conditions"
+    1 to: guardBlocks size do: [:idx | ((guardBlocks at: idx)value) ifTrue: [
+    numTrue := numTrue+1.
+    trueIdx := idx
+    ].
+    ].
+    "checks which condition of exclusive select to output"
+    numTrue=1 ifTrue: [((thenBlocks at: trueIdx)value)].
+    numTrue=0 ifTrue: [elseBlock value].
+    numTrue>1 ifTrue: ['Error signalled.' display]
+    ]
 ]
 
 Select class extend [
     notAllowedString: msg [
-        |d| 
+        |d|
         d := Dictionary new.
         d at: #end put: ' after end.'.
         d at: #else: put: ' after else: or end.'.
@@ -112,4 +149,25 @@ Select class extend [
     exclusive [ ^ExclusiveSelect new init ]
 
     first [ ^FirstSelect new init ]
-]
+].
+"
+Select first if: [cout << 'one'; nl. 1=2] then: [cout << 'no'; nl];
+             if: [cout << 'two'; nl. 1=1] then: [cout << 'yes'; nl];
+             if: [cout << 'three'; nl. 1=1] then: [cout << 'affirm'; nl];
+             end."
+"TESTS:"
+"[a := 2.
+Select first
+if: [a = 2] then: [Transcript show: 'one!'];
+if: [a > 3] then: [Transcript show: 'positive!'];
+if: [a = 4] then: [Transcript show: 'another one']
+else: [Transcipt show: 'bet']
+end] value"
+"
+
+[Select all switch: 5;
+case: [1 to: 5] then: [Transcript show: '5 is in this collection'];
+case: [Set with: 2] then: [Transcipt show: 'but not this one'];
+case: [1 to: 9 by: 2] then: [Transcript show: 'could be!'];
+else: [Transcipt show: 'definitely not'];
+end] valse"
